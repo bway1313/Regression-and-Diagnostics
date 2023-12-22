@@ -1,0 +1,192 @@
+---
+title: "Homework 3"
+subtitle: "Diagnostics and GLM"
+author: "Brian Motherway"
+output: pdf_document
+---
+
+```{r setup, message=FALSE, warning=FALSE, error=FALSE}
+library(ISLR2)
+library(car)
+library(leaps)
+library(msm)
+library(tidyverse)
+library(stringr)
+library(GLMsData)
+library(statmod)
+library(MASS)
+```
+
+# Question 1
+```{r}
+setwd("C:/Users/mothe/OneDrive/Documents/CMU/Mini 2/Statistical Foundations of Business Analytics/Data")
+real_estate <- read_csv("real-estate-valuation-data-set.csv")
+
+multi_reg <- lm(unit_price ~ convenience_stores + log(distance), data = real_estate)
+summary(multi_reg)
+```
+
+# Question 2
+```{r}
+std_residuals <- rstandard(multi_reg)
+mean(std_residuals)
+var(std_residuals)
+
+scatter.smooth(
+  std_residuals ~ real_estate$convenience_stores,
+  col = "grey",
+  las = 1,
+  ylab = "Standardized residuals",
+  xlab = "Height (inches)"
+)
+
+res_conv_plot <- ggplot(data = real_estate, aes(x = real_estate$convenience_stores, y = std_residuals)) +
+  geom_point() +
+  geom_smooth(se = FALSE)
+res_conv_plot
+```
+Generally the residuals are fairly consistent with a average standardized residual of about 0. However, there is one data point at height 3 that has and standardized residual of 8, I would want to look into this data point further with outlier analysis.
+
+# Question 3
+```{r}
+res_logdis_plot <- ggplot(data = real_estate, aes(x = log(real_estate$distance), y = std_residuals)) +
+  geom_point() +
+  geom_smooth(se = FALSE)
+res_logdis_plot
+```
+Yes, the standardized residuals for value of log(distance) have a trend below zero. I would want to look into this further, we may be over estimating the value for those points.
+
+# Question 4
+```{r}
+multi_reg_fitted <- fitted(multi_reg)
+res_funitprice_plot <- ggplot(data = real_estate, aes(x = multi_reg_fitted, y = std_residuals)) +
+  geom_point() +
+  geom_smooth(se = FALSE)
+res_funitprice_plot 
+```
+Yes, the standardized residuals for a unit price of greater than 50 is not averaging zero. We may over estimating these points.
+
+#Question 5
+```{r}
+qqnorm(std_residuals, las = 1, pch = 19)
+qqline(std_residuals)
+```
+It looks like the model might be assuming tails that are slightly too heavy for the model.
+
+#Question 6
+```{r}
+box_cox <- boxcox(unit_price ~ convenience_stores + log(distance), data = real_estate)
+lambda <- box_cox$x[which.max(box_cox$y)] 
+lambda
+```
+#Question 7 
+```{r}
+bc_mlr <- lm(((unit_price^lambda - 1)/ lambda)~ convenience_stores + log(distance),  data = real_estate)
+summary(bc_mlr)
+hist(multi_reg$residuals) #Original residuals
+hist(bc_mlr$residuals) # Much more Normal-looking residuals.
+```
+#Question 8
+##8.2
+```{r}
+bcstd_residuals <- rstandard(bc_mlr)
+mean(bcstd_residuals)
+var(bcstd_residuals)
+
+scatter.smooth(
+  bcstd_residuals ~ real_estate$convenience_stores,
+  col = "grey",
+  las = 1,
+  ylab = "Standardized residuals",
+  xlab = "Height (inches)"
+)
+
+bcres_conv_plot <- ggplot(data = real_estate, aes(x = real_estate$convenience_stores, y = bcstd_residuals)) +
+  geom_point() +
+  geom_smooth(se = FALSE)
+res_conv_plot
+bcres_conv_plot
+```
+##8.3
+```{r}
+bcres_logdis_plot <- ggplot(data = real_estate, aes(x = log(real_estate$distance), y = bcstd_residuals)) +
+  geom_point() +
+  geom_smooth(se = FALSE)
+res_logdis_plot
+bcres_logdis_plot
+```
+There is no material difference in the residuals for the boxcox plot.
+
+##8.4
+```{r}
+bc_mlr_fitted <- fitted(bc_mlr)
+bcres_funitprice_plot <- ggplot(data = real_estate, aes(x = bc_mlr_fitted, y = bcstd_residuals)) +
+  geom_point() +
+  geom_smooth(se = FALSE)
+res_funitprice_plot 
+bcres_funitprice_plot
+```
+There is no material difference in the residuals for the boxcox plot.
+
+##8.5
+```{r}
+qqnorm(std_residuals, las = 1, pch = 19)
+qqline(std_residuals)
+qqnorm(bcstd_residuals, las = 1, pch = 19)
+qqline(bcstd_residuals)
+```
+There is no material difference in the normality for the boxcox plot.
+
+# Question 9
+```{r}
+bc_mlr_im <- influence.measures(bc_mlr)
+summary(bc_mlr_im)
+```
+No, no observation for DFBETA were flagged as influential
+
+#Question 10
+```{r}
+?germ
+data(germ)
+summary(germ)
+
+glmmodel <- glm(
+  Germ / Total ~ Extract + Seeds,
+  weights = Total,
+  family = "binomial",
+  data = germ
+)
+summary(glmmodel)
+```
+# Question 11
+
+##11.1
+```{r}
+levels(germ$Extract)
+levels(germ$Seeds)
+```
+The baseline categories are Bean for Extract and OA73 for Seed
+
+##11.2
+```{r}
+exp(glmmodel$coefficients[1])
+```
+The odds of germination for the baseline combination is .4965605
+
+##11.3
+```{r}
+exp(glmmodel$coefficients[2])
+```
+The odds are 2.900113 times greater.
+
+##11.4
+```{r}
+exp(glmmodel$coefficients[3])
+```
+The odds are 1.310555 times greater.
+
+##11.5
+```{r}
+exp(glmmodel$coefficients[2] + glmmodel$coefficients[3])
+```
+The odds are 3.800759 times greater.
